@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:shopping_app/data/categories.dart';
 import 'package:shopping_app/models/category_model.dart';
 import 'package:http/http.dart' as http;
+import 'package:shopping_app/models/grocery_model.dart';
 
 class AddNewGrocery extends StatefulWidget {
   const AddNewGrocery({super.key});
@@ -13,37 +14,44 @@ class AddNewGrocery extends StatefulWidget {
 
 class _AddNewGroceryState extends State<AddNewGrocery> {
   final _formKey = GlobalKey<FormState>();
+  bool _isSending = false;
   String _selectedName = '';
   var _selectedQuantity = 1;
   var _selectedCategory = categories[Categories.vegetables]!;
 
-  void _setItem() {
+  void _setItem() async {
     if (_formKey.currentState!.validate()) {
+      setState(() {
+        _isSending = true;
+      });
       _formKey.currentState!.save();
       final url = Uri.https(
           'shoppy-fy-default-rtdb.firebaseio.com', 'shopping-list.json');
 
-      http
-          .post(url,
-              headers: {'content-item': 'data/json'},
-              body: json.encode(
-                {
-                  'name': _selectedName,
-                  'quantity': _selectedQuantity,
-                  'category': _selectedCategory.title,
-                },
-              ))
-          .then((response) {
-        ScaffoldMessenger.of(context).clearSnackBars();
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('Item added successfully'),
-          duration: Duration(seconds: 2),
-        ));
-      });
+      final response = await http.post(
+        url,
+        headers: {'content-item': 'data/json'},
+        body: json.encode(
+          {
+            'name': _selectedName,
+            'quantity': _selectedQuantity,
+            'category': _selectedCategory.title,
+          },
+        ),
+      );
+
+      final Map<String, dynamic> resData = json.decode(response.body);
       if (!context.mounted) {
         return;
       }
-      Navigator.pop(context);
+ Navigator.of(context).pop(
+        GroceryItem(
+          id: resData['name'],
+          name: _selectedName,
+          quantity: _selectedQuantity,
+          category: _selectedCategory,
+        ),
+      );
     }
   }
 
@@ -141,13 +149,21 @@ class _AddNewGroceryState extends State<AddNewGrocery> {
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
                   TextButton(
-                      onPressed: () {
-                        _formKey.currentState!.reset();
-                      },
+                      onPressed: _isSending
+                          ? null
+                          : () {
+                              _formKey.currentState!.reset();
+                            },
                       child: const Text('Reset')),
                   ElevatedButton(
-                    onPressed: _setItem,
-                    child: const Text('Add item'),
+                    onPressed: _isSending ? null : _setItem,
+                    child: _isSending
+                        ? const SizedBox(
+                            height: 16,
+                            width: 16,
+                            child: CircularProgressIndicator(),
+                          )
+                        : const Text('Add item'),
                   )
                 ],
               )
